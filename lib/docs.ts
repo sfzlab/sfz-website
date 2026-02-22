@@ -1,5 +1,5 @@
 import fs from 'fs';
-import glob from 'glob';
+import { globSync } from 'glob';
 import { join } from 'path';
 import matter from 'gray-matter';
 import { YamlDocument } from './types';
@@ -37,7 +37,7 @@ function getDocuments(folder: string) {
 function getDocumentSlugs(folder: string) {
   const dirRoot: string = join(process.cwd(), 'data', folder);
   // console.log('getDocuments', dirRoot);
-  const filenames = glob.sync('**/*.md', { cwd: dirRoot });
+  const filenames = globSync('**/*.md', { cwd: dirRoot });
   return filenames.map((filename: string) => filename.replace('.md', '').split('/'));
 }
 
