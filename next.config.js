@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+/* eslint-disable-next-line @typescript-eslint/no-require-imports */
 const withYaml = require('next-plugin-yaml');
 
 const nextConfig = {

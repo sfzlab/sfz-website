@@ -15,7 +15,7 @@ const MultiSelect = ({ label, values }: MultiSelectProps) => {
     e.preventDefault();
     e.target.blur();
     window.focus();
-    var checkboxes = document.getElementById(label);
+    const checkboxes = document.getElementById(label);
     if (checkboxes?.style.display === 'block') {
       if (checkboxes) checkboxes.style.display = 'none';
     } else {
@@ -43,7 +43,7 @@ const MultiSelect = ({ label, values }: MultiSelectProps) => {
         <option>{label}</option>
       </select>
       <div className={styles.multiselectCheckboxes} id={label}>
-        {values.map((value: string, index: number) => (
+        {values.map((value: string) => (
           <label className={styles.multiselectLabel} htmlFor={toSlug(value)} key={toSlug(value)}>
             <input
               className={styles.multiselectInput}

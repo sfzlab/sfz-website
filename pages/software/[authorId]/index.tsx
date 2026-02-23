@@ -5,7 +5,7 @@ import styles from '../../../styles/list.module.css';
 import GridItem from '../../../components/grid-item';
 import MultiSelect from '../../../components/multi-select';
 import { includesValue, toSlug } from '../../../lib/utils';
-import { YamlApplication, YamlSoftware } from '../../../lib/types';
+import { YamlApplication } from '../../../lib/types';
 import { getSoftware, getSoftwareCategories, getSoftwareLicenses, getSoftwarePlatforms } from '../../../lib/api';
 import { ChangeEvent } from 'react';
 import { GetBasePath } from '../../../lib/path';

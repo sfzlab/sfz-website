@@ -12,7 +12,7 @@ type GridItemProps = {
   itemIndex: number;
 };
 
-const GridItem = ({ section, item, itemIndex }: GridItemProps) => (
+const GridItem = ({ section, item }: GridItemProps) => (
   <Link
     className={styles.item}
     href={`/${section}/[authorId]/[instrumentId]/`}
@@ -24,7 +24,7 @@ const GridItem = ({ section, item, itemIndex }: GridItemProps) => (
           section,
           GetBasePath(),
           toSlug(item.category),
-          section === 'instruments' ? item.page : item.slug
+          section === 'instruments' ? item.page : item.slug,
         )}
         alt={item.name}
         width="300"
