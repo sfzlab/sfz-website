@@ -2,7 +2,7 @@ import Head from 'next/head';
 import Layout, { siteTitle } from '../components/layout';
 import styles from '../styles/list.module.css';
 import { GetBasePath } from '../lib/path';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   convertJsToSfz,
   convertJsToXml,
@@ -17,6 +17,7 @@ import {
   convertYamlToSfz,
   convertYamlToXml,
 } from '@sfz-tools/core/dist/convert';
+import Script from 'next/script';
 
 declare global {
   interface Window {
@@ -53,49 +54,92 @@ hikey=66
 sample=./samples/F4.wav
 `;
 
+const formatJsonCondensedObjects = (value: unknown): string => {
+  let output = JSON.stringify(value, null, 2);
+
+  // Collapse single-property objects for a compact-but-readable style.
+  const transforms: Array<[RegExp, string]> = [
+    [/^(\s*)\{\n\1 {2}("[^"]+": [^\n]+)\n\1\}(,?)$/gm, '$1{$2}$3'],
+    [/^(\s*)\{\n\1 {2}("[^"]+": [[{])$/gm, '$1{$2'],
+    [/^(\s+)([\]}])\n(\s+)\}(,?)$/gm, '$3$2}$4'],
+    [/^(\s*)([\]}])\n\1\}(,?)$/gm, '$1$2}$3'],
+  ];
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [regex, replacement] of transforms) {
+      const next = output.replace(regex, replacement);
+      if (next !== output) {
+        changed = true;
+        output = next;
+      }
+    }
+  }
+
+  return output;
+};
+
 const Software = () => {
-  let ace: any = {};
-  let aceEl: any = {};
-  let inited: Boolean = false;
-  let loading: Boolean = false;
+  const aceRef = useRef<Record<string, any>>({});
+  const aceElRef = useRef<Record<string, HTMLElement>>({});
+  const initedRef = useRef<boolean>(false);
+  const loadingRef = useRef<boolean>(false);
+  const errorElRef = useRef<HTMLElement | null>(null);
+  const [aceCoreReady, setAceCoreReady] = useState(false);
+  const [scriptsReady, setScriptsReady] = useState(false);
   const title: string = `${siteTitle} - Converter`;
-  let errorEl: HTMLElement | null;
 
   useEffect(() => {
-    if (inited) return;
+    if (!scriptsReady || initedRef.current) return;
+
+    if (!window.ace || !window.ace.require('ace/ext/modelist')) return;
+
     const initEditors = async () => {
-      inited = true;
-      errorEl = document.getElementById('errors');
+      initedRef.current = true;
+      errorElRef.current = document.getElementById('errors');
       init('ace-sfz');
       init('ace-json');
       init('ace-yaml');
       init('ace-xml');
-      loadFile('ace-sfz', fileSfz, true);
+      await loadFile('ace-sfz', fileSfz, true);
     };
-    initEditors();
-  });
+    void initEditors();
+  }, [scriptsReady]);
+
+  const handleScriptLoad = () => {
+    if (!window.ace) return;
+    try {
+      const modelist = window.ace.require('ace/ext/modelist');
+      if (modelist) setScriptsReady(true);
+    } catch {
+      // Wait for ext-modelist script to finish loading.
+    }
+  };
 
   const init = (id: string) => {
-    if (aceEl[id]) return;
-    aceEl[id] = document.getElementById(id);
-    aceEl[id].className = 'ace';
-    ace[id] = window.ace.edit(aceEl[id], {
+    if (aceElRef.current[id]) return;
+    const el = document.getElementById(id);
+    if (!el || !window.ace) return;
+    aceElRef.current[id] = el;
+    aceElRef.current[id].className = 'ace';
+    aceRef.current[id] = window.ace.edit(aceElRef.current[id], {
       theme: 'ace/theme/monokai',
     });
-    ace[id].session.on('change', async function () {
-      if (loading === false) {
-        await loadFile(id, ace[id].getOption('value'));
+    aceRef.current[id].session.on('change', async function () {
+      if (loadingRef.current === false) {
+        await loadFile(id, aceRef.current[id].getOption('value'));
       }
     });
   };
 
   const loadFile = async (id: string, file: string, loadAll = false) => {
-    loading = true;
+    loadingRef.current = true;
     try {
-      if (errorEl) errorEl.innerHTML = '';
+      if (errorElRef.current) errorElRef.current.innerHTML = '';
       if (id === 'ace-sfz') {
         if (loadAll) load('ace-sfz', 'sfz', file);
-        load('ace-json', 'json', JSON.stringify(await convertSfzToJs(file), null, 2));
+        load('ace-json', 'json', formatJsonCondensedObjects(await convertSfzToJs(file)));
         load('ace-yaml', 'yaml', await convertSfzToYaml(file));
         load('ace-xml', 'xml', await convertSfzToXml(file));
       } else if (id === 'ace-json') {
@@ -105,34 +149,36 @@ const Software = () => {
         load('ace-xml', 'xml', convertJsToXml(JSON.parse(file)));
       } else if (id === 'ace-yaml') {
         load('ace-sfz', 'sfz', convertYamlToSfz(file));
-        load('ace-json', 'json', JSON.stringify(convertYamlToJs(file), null, 2));
+        load('ace-json', 'json', formatJsonCondensedObjects(convertYamlToJs(file)));
         if (loadAll) load('ace-yaml', 'yaml', file);
         load('ace-xml', 'xml', convertYamlToXml(file));
       } else if (id === 'ace-xml') {
         load('ace-sfz', 'sfz', convertXmlToSfz(file));
-        load('ace-json', 'json', JSON.stringify(convertXmlToJs(file), null, 2));
+        load('ace-json', 'json', formatJsonCondensedObjects(convertXmlToJs(file)));
         load('ace-yaml', 'yaml', convertXmlToYaml(file));
         if (loadAll) load('ace-xml', 'xml', file);
       }
     } catch (e) {
-      if (errorEl) errorEl.innerHTML = e as string;
+      if (errorElRef.current) errorElRef.current.innerHTML = e as string;
     }
-    loading = false;
+    loadingRef.current = false;
   };
 
   const load = (id: string, type: string, file: string) => {
     if (type === 'sfz') {
+      // Loaded at runtime because the module depends on global ace.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const SfzMode = require('../lib/ace/mode-sfz').Mode;
-      ace[id].session.setMode(new SfzMode());
+      aceRef.current[id].session.setMode(new SfzMode());
     } else {
       const modelist = window.ace.require('ace/ext/modelist');
       if (!modelist) {
         window.alert('Ace modelist not found, add to a <script> tag.');
       }
       const mode: string = modelist.getModeForPath(`filename.${type}`).mode;
-      ace[id].session.setMode(mode);
+      aceRef.current[id].session.setMode(mode);
     }
-    ace[id].setOption('value', file);
+    aceRef.current[id].setOption('value', file);
   };
 
   return (
@@ -142,18 +188,26 @@ const Software = () => {
         <meta name="description" content={title} />
         <meta name="og:image" content={`${GetBasePath()}/images/software.jpg`} />
         <meta name="og:title" content={title} />
-        <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.16.0/src-min-noconflict/ace.js" defer></script>
-        <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.16.0/src-min-noconflict/ext-modelist.js" defer></script>
       </Head>
+      <Script
+        src="https://cdn.jsdelivr.net/npm/ace-builds@1.16.0/src-min-noconflict/ace.js"
+        onLoad={() => setAceCoreReady(true)}
+      />
+      {aceCoreReady && (
+        <Script
+          src="https://cdn.jsdelivr.net/npm/ace-builds@1.16.0/src-min-noconflict/ext-modelist.js"
+          onLoad={handleScriptLoad}
+        />
+      )}
       <section className={styles.section}>
         <div className={styles.header}>
           <h1 className={styles.title}>Converter</h1>
         </div>
         <div className="editors">
-          <div className="editor">sfz</div>
-          <div className="editor">json</div>
-          <div className="editor">yaml</div>
-          <div className="editor">xml</div>
+          <div className="editor">file.sfz</div>
+          <div className="editor">file.sfz.json</div>
+          <div className="editor">file.sfz.yaml</div>
+          <div className="editor">file.sfz.xml</div>
         </div>
         <div className="editors">
           <div id="ace-sfz"></div>
